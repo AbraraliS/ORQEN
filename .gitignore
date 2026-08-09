@@ -1,0 +1,51 @@
+.nhost
+.secrets
+
+# Node
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Next.js
+.next/
+out/
+build/
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Logs
+logs/
+*.log
+pids/
+*.pid
+
+# Editor / IDE
+.vscode/
+.idea/
+*.sublime-workspace
+*.sublime-project
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Tests / coverage
+coverage/
+jest-cache/
+.cache/
+
+# TypeScript
+*.tsbuildinfo
+
+# Build output
+dist/
+
+# Misc
+.cache/
+.swp
+*.cache
