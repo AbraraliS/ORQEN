@@ -1,327 +1,133 @@
-# Orqen
+# Orqen — AI Workflow Orchestration
 
-Orqen is an AI workflow orchestration platform frontend for building, executing, and monitoring multi-step AI workflows. It provides a visual React Flow interface for designing agentic pipelines and connects to a backend for execution and real-time monitoring.
+Orqen is a powerful, visual, and extensible AI workflow orchestration platform. It provides a node-based interface to design, automate, and execute multi-step workflows featuring AI generation, manual approval gates, conditional branching, HTTP requests, and more. 
 
-## 1. Features
+Orqen is built as a complete full-stack application backed by Nhost (PostgreSQL, Hasura GraphQL, Serverless Functions, and Authentication) and Next.js.
 
-**Implemented Features:**
-- Visual workflow builder
-- React Flow-based workflow editor
-- UI for configuring:
-  - AI/LLM steps
-  - HTTP request steps
-  - Conditional branching
-  - Approval gates
-  - Database writes
-  - Notifications
-- Manual execution UI
-- Webhook execution UI
-- Real-time execution monitoring UI elements (GraphQL subscriptions)
-- Organization isolation UI context
-- Owner/editor/viewer roles (frontend UX gating)
-- Nhost authentication integration
+## Core Features
 
-**Not Implemented:**
-- Server-side workflow executor (LLM, HTTP, DB Write logic)
-- Actual execution backend logic for pause/resume
-- Scheduled/database triggers
-- Server-side role-based authorization
+- **Visual Workflow Builder:** A drag-and-drop React Flow canvas to design node-based DAG (Directed Acyclic Graph) workflows.
+- **Robust Execution Engine:** A fully realized state machine built with Nhost serverless functions and Hasura Actions that orchestrates execution, persists state step-by-step, and strictly handles failure routing.
+- **Manual Approval Gates:** Allows a workflow to safely pause execution in the cloud. It waits for an Editor or Owner to approve or reject the step from the dashboard before resuming the state machine.
+- **AI Integration:** First-class support for executing generative AI tasks using Gemini (LLM node).
+- **Conditional Branching:** Native support for True/False edge routing based on step outputs.
+- **Role-Based Access Control (RBAC):** Organization-level permissions securely isolating Owner, Editor, and Viewer roles using Hasura Row-Level Security (RLS) policies.
+- **Real-Time Monitoring:** Uses Hasura GraphQL Subscriptions via Apollo Client to stream workflow execution progress directly to the UI.
 
-## 2. Architecture
+## Tech Stack & Architecture
 
-```mermaid
-graph TD
-    Browser[Browser] --> NextJS[Next.js App Router]
-    NextJS --> Apollo[Apollo Client]
-    
-    subgraph Orqen Frontend [Implemented]
-        NextJS
-        Apollo
-        ReactFlow[React Flow Builder]
-    end
-    
-    Apollo -->|GraphQL & Subscriptions| NhostBackend[External Backend]
-    
-    subgraph External Backend [Not Implemented Here]
-        NhostBackend
-    end
-```
+- **Frontend:** Next.js (App Router), React, Tailwind CSS, shadcn/ui, React Flow.
+- **Data Layer:** Apollo Client with GraphQL subscriptions (ws/wss).
+- **Backend (Nhost):**
+  - **Database:** PostgreSQL for robust ACID-compliant state storage.
+  - **API:** Hasura GraphQL engine automatically exposing the database via secure GraphQL operations.
+  - **Authentication:** Nhost Auth (JWT) integrated with Next.js and Hasura.
+  - **Compute:** Nhost Serverless Functions (Node.js/Express) triggered via Hasura Custom Actions.
 
-The architecture implemented in this repository represents the presentation and state management layer (Next.js). It uses Apollo Client to connect to a compliant backend (which must be configured separately as it is not included in this codebase).
+## The Execution Engine
 
-## 3. Tech Stack
+Unlike simple client-side simulators, Orqen features a true backend execution engine:
+1. **Triggering:** A workflow is initiated via a Hasura Action (`triggerWorkflowRun`) which invokes the `/trigger-workflow` serverless function.
+2. **DAG Construction:** The function constructs a topological execution plan from the workflow's nodes and edges.
+3. **Step Execution (`executor.ts`):** Each step executes in sequence or conditionally. State is persistently logged to `step_runs` and `workflow_runs` tables.
+4. **Resumption:** If an `approval_gate` is reached, the engine suspends the execution and marks the run as `paused`. A subsequent `approveStep` Hasura Action resumes the workflow execution from where it left off by querying previous outputs.
 
-| Layer | Technology |
-|---|---|
-| Frontend | Next.js |
-| UI | React + Tailwind CSS + shadcn/ui |
-| Workflow Editor | React Flow |
-| API | GraphQL |
-| Authentication | Nhost Auth |
+### Supported Node Types
+- **Trigger:** Entry point of the workflow (Manual, Webhook, Schedule).
+- **LLM:** Prompts Gemini AI with structured outputs.
+- **HTTP Request:** Executes outbound REST API calls.
+- **Conditional Branch:** Evaluates a condition and routes execution down `true` or `false` paths.
+- **Approval Gate:** Pauses execution until manual intervention.
+- **Database Write:** Stores outputs securely into the database.
+- **Notification:** Sends alerts (email, slack, etc).
 
-## 4. Repository Structure
+## Getting Started
 
-```text
-src/
-  app/                    # Next.js App Router pages and layouts
-  components/
-    layout/               # Shell, Topbar, Sidebar, Org Switcher
-    ui/                   # shadcn/ui components
-    workflow/             # React Flow nodes, canvas, and palettes
-  hooks/                  # Custom hooks for Nhost/Apollo interactions
-  lib/
-    auth/                 # Organization and user context providers
-    graphql/              # GraphQL queries and mutations
-    workflow/             # Workflow node catalog and converters
-```
+### 1. Prerequisites
+- [Docker](https://www.docker.com/) (Required for local Nhost environment)
+- [Nhost CLI](https://docs.nhost.io/cli) (Installed globally or used via `npx nhost`)
+- Node.js (v20+)
+- A Gemini API Key (from Google AI Studio)
 
-## 5. Core Data Model
+### 2. Environment Setup
 
-*Note: The actual database schema migrations do not exist in this repository. The frontend expects the following structure based on its GraphQL definitions:*
-
-- `organizations`: Multi-tenant groupings.
-- `org_members`: Links users to organizations with roles.
-- `workflows`: Base table for user-created workflow graphs.
-- `workflow_steps`: Individual nodes within a workflow.
-- `workflow_runs`: Execution records of workflows.
-- `step_runs`: Execution logs for individual steps.
-
-## 6. Workflow Step Types
-
-### LLM Call
-**Purpose:** Invoke an AI model (e.g., Gemini) with system and user prompts.
-**Configuration:** Provider, Model, System/User Prompts, Temperature.
-**Execution behavior:** Not Implemented in backend.
-
-### HTTP Request
-**Purpose:** Perform external API calls.
-**Configuration:** Method, URL, Headers, Body, Retry count.
-**Execution behavior:** Not Implemented in backend.
-
-### Conditional Branch
-**Purpose:** Route execution based on evaluated expressions.
-**Supported operators:** standard equality/comparison.
-**TRUE/FALSE routing:** Visually implemented via distinct React Flow handles.
-
-### Approval Gate
-**Purpose:** Pause workflow execution for human intervention.
-**Pause behavior:** Frontend UI supports pausing.
-**Resume behavior:** Frontend supports an `approveStep` mutation.
-
-### DB Write
-**Purpose:** Write structured data to configured tables.
-**What it writes:** Maps upstream payload to database schemas.
-
-### Notify
-**Purpose:** Send alerts.
-**How notification processing works:** Visually configured; Backend dispatcher Not Implemented.
-
-## 7. Workflow Execution
-
-**Expected Lifecycle (Frontend perspective):**
-The UI attempts to invoke `triggerWorkflowRun` via GraphQL. The UI expects the backend to emit `step_runs` updates over GraphQL subscriptions.
-
-Statuses supported by the frontend UI:
-- **Workflow:** pending, running, paused, completed, failed
-- **Step:** pending, running, paused, completed, failed, skipped
-
-## 8. Approval Gate Architecture
-
-*Note: The backend authorization and execution pauses are **Not Implemented**.*
-
-**Frontend implementation:**
-1. UI subscribes to run state and detects a `paused` step.
-2. User is presented with Approve/Reject buttons.
-3. User clicks Approve -> invokes `approveStep` GraphQL mutation.
-4. Frontend relies on the backend to validate organization membership and roles before proceeding.
-
-## 9. Security Model
-
-**Frontend Implementation:**
-Frontend components restrict actions (e.g., hiding the Run button or disabling configuration of DB Writes) based on the user's role (Owner, Editor, Viewer).
-
-**Backend Layer:**
-The application relies on Hasura authorization filters and server-side functions to actually secure the data. *This backend logic does not exist in the current repository.*
-
-## 10. Organization Isolation
-
-The UI filters data by checking the active organization ID selected in the `OrgProvider`. Direct ID guessing protection and actual isolation must be enforced by the missing backend.
-
-## 11. Privileged Step Gating
-
-The frontend enforces UX restrictions for owner-only features:
-- DB Write
-- Notify
-- Webhook trigger
-
-*Server-side validation is Not Implemented in this repository.*
-
-## 12. GraphQL
-
-The frontend defines the following operations:
-
-Queries:
-- `WORKFLOW_LIST_QUERY`
-- `WORKFLOW_DETAIL_QUERY`
-- `RUN_LIST_QUERY`
-- `RUN_DETAIL_QUERY`
-
-Mutations:
-- `START_RUN_MUTATION` (`triggerWorkflowRun`)
-- `DECIDE_APPROVAL_MUTATION` (`approveStep`)
-
-Subscription:
-- `WORKFLOW_RUN_SUBSCRIPTION` (streams `step_runs` by `workflow_run_id`)
-
-## 13. Real-Time Execution
-
-**Architecture:**
-The frontend utilizes `@apollo/client` and `graphql-ws` to subscribe to live updates. No polling is used for run progress.
-
-## 14. Triggers
-
-**Implemented in UI:**
-- Manual
-- Webhook
-
-**Webhook Configuration:**
-Users can generate a webhook URL and secret. 
-Example usage expected by the platform:
+Copy the environment template and populate it:
 ```bash
-curl -X POST "<WEBHOOK_URL>" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "workflow_id": "<WORKFLOW_ID>",
-    "secret": "<WEBHOOK_SECRET>",
-    "input": {
-      "customer": "Acme Corp",
-      "message": "Customer wants an enterprise plan"
-    }
-  }'
+cp .env.example .env.local
+cp .env.example .env
 ```
 
-## 15. Demo Workflow
-
-The frontend renders the **Customer Priority Analyzer** workflow:
-
-```text
-Trigger
-↓
-LLM
-↓
-HTTP
-↓
-Conditional
-├── TRUE → Approval Gate
-│            ↓
-│          DB Write
-│            ↓
-│          Notify
-│
-└── FALSE → Notify
-```
-
-*Note: Execution of this demo is Not Verified because the execution backend is missing.*
-
-## 16. Local Development Requirements
-
-- Node.js
-- npm
-- (Optional) Nhost Cloud backend to connect the frontend to.
-
-## 17. Installation
-
-```bash
-git clone <repository-url>
-cd agentflow-designer
-npm install
-```
-
-## 18. Environment Variables
-
-Create a `.env.local` file:
-
+Ensure your `.env` and `.env.local` files contain your Gemini API key:
 ```env
-NEXT_PUBLIC_NHOST_SUBDOMAIN="local" # Your Nhost subdomain
-NEXT_PUBLIC_NHOST_REGION=""         # Your Nhost region
+GEMINI_API_KEY=your_actual_api_key_here
 ```
 
-## 19. Database / Hasura Setup
+### 3. Start the Backend (Nhost)
 
-**Not Implemented.** The repository does not contain database migrations or Hasura metadata.
-
-## 20. Authentication Setup
-
-Authentication is handled via the `@nhost/nextjs` library. Users can sign in using the `/login` route, which delegates to the configured Nhost backend.
-
-## 21. Running the Application
-
-**Frontend:**
+Start the complete backend infrastructure locally (Postgres, Hasura, Auth, Storage, Functions):
 ```bash
+npx nhost up
+```
+*(This may take a few minutes the first time as it downloads the docker images.)*
+
+### 4. Apply Hasura Metadata
+
+To configure Hasura permissions, relationships, and Actions, run the setup script:
+```bash
+node setup-metadata.mjs
+```
+
+### 5. Start the Frontend
+
+Install dependencies and start the Next.js development server:
+```bash
+npm install
 npm run dev
 ```
-Then navigate to: `http://localhost:3000`
+Open [http://localhost:3000](http://localhost:3000) in your browser.
 
-## 22. Testing
+## Database Schema Highlights
 
-The following commands are available:
-- `npm run typecheck` - Validates TypeScript types and structure.
-- `npm run lint` - Runs Next.js ESLint checks.
-- `npm run build` - Validates that the Next.js App Router can statically and dynamically compile the application without errors.
+- `organizations`: Multi-tenant organization support.
+- `organization_members`: Maps users to orgs with defined roles (`owner`, `editor`, `viewer`).
+- `organization_usage`: Tracks quota limits per organization.
+- `workflows`: Metadata for workflows.
+- `workflow_steps` & `workflow_edges`: Normalized storage for React Flow node/edge graphs.
+- `workflow_runs`: High-level tracking of a single workflow execution.
+- `step_runs`: Atomic tracking of each individual step's status, input, output, duration, and error messages.
 
-## 23. Security Verification
+## Security & Permissions
 
-**Verified:**
-- Frontend compilation and static typing.
-- Next.js layout and provider architecture.
+Orqen heavily leverages Hasura Row-Level Security (RLS). Users are issued JWTs containing their `x-hasura-user-id`. 
 
-**Not Verified (Requires Backend):**
-- Cross-organization workflow access
-- Direct UUID access
-- Viewer run restriction
-- Editor privileged-step restriction
-- Cross-organization approval
-- Cross-organization workflow execution
+Hasura permissions ensure:
+- Users can only read data belonging to organizations where they are a member.
+- Only users with the `editor` or `owner` role can mutate workflows or approve paused steps.
+- Serverless functions perform a secondary verification of the user's role before executing privileged operations.
 
-## 24. E2E Demonstration
+## Environment Variables Configuration
+- `.env.local`: Used by Next.js frontend (contains `NEXT_PUBLIC_NHOST_SUBDOMAIN`).
+- `.env`: Used by Nhost functions runtime (contains `GEMINI_API_KEY` for backend execution).
+- `.nhost/docker-compose.yaml`: Automatically configures the local Nhost services.
 
-**Not Verified.** 
-Because the execution engine and backend are missing from the repository, a full end-to-end execution cannot be run locally.
+## Project Structure
 
-## 25. Deployment
+```
+├── .nhost/                # Local Nhost docker-compose and configuration
+├── functions/             # Serverless backend compute (Node.js/Express)
+│   ├── _shared/           # Core execution engine (executor.ts, step-executor.ts)
+│   ├── approve-step.ts    # Hasura Action handler for manual approvals
+│   └── trigger-workflow.ts# Hasura Action handler for workflow initiation
+├── nhost/
+│   └── migrations/        # PostgreSQL schema migrations
+├── src/
+│   ├── app/               # Next.js App Router pages
+│   ├── components/        # React components (UI, workflow builder)
+│   ├── hooks/             # Apollo GraphQL hooks (useWorkflow, useWorkflowRun)
+│   ├── lib/               # Utilities, Auth contexts, GraphQL Documents
+│   └── types/             # TypeScript interfaces
+├── setup-metadata.mjs     # Script to seed Hasura with tracking, RLS, and Actions
+└── .env.example           # Environment template
+```
 
-**Frontend:**
-The application can be deployed to Vercel or any Next.js compatible host.
 
-1. Connect repository to Vercel.
-2. Set `NEXT_PUBLIC_NHOST_SUBDOMAIN` and `NEXT_PUBLIC_NHOST_REGION`.
-3. Deploy.
-
-## 26. Production Considerations
-
-This repository is purely a frontend web application. To become a production-grade system, a complete backend must be generated, implementing Hasura authorization policies and a server-side execution engine.
-
-## 27. Assignment Requirements Mapping
-
-| Requirement | Implementation |
-|---|---|
-| Multi-tenant organizations | Frontend context (`OrgProvider`) |
-| Role-based access | Frontend UI gating |
-| Workflow builder | React Flow UI |
-| LLM call | Config UI only |
-| HTTP request | Config UI only |
-| DB write | Config UI only |
-| Notify | Config UI only |
-| Conditional branch | Config UI only |
-| Approval gate | Config UI + `approveStep` mutation |
-| Manual trigger | `triggerWorkflowRun` mutation |
-| Webhook trigger | Config UI only |
-| Real-time updates | GraphQL Subscriptions (`useWorkflowRunSubscription`) |
-| Quota | UI usage meter |
-| Cross-org isolation | **Not Implemented** |
-
-## 28. Security Architecture Summary
-
-**Frontend permissions ≠ security boundary.** 
-
-The current repository enforces restrictions in the React application (e.g., hiding buttons based on user role). However, actual security—including authorization, server-side Action validation, organization membership, and role checks—must be implemented in an external backend environment, which is currently absent from this codebase.

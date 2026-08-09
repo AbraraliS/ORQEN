@@ -1,6 +1,6 @@
 import fs from 'fs';
 
-const HASURA_URL = 'http://graphql:8080/v1/metadata'; // Note: connecting from inside docker
+const HASURA_URL = 'http://localhost:8080/v1/metadata'; // Note: connecting from host, not inside docker
 const ADMIN_SECRET = 'nhost-admin-secret';
 
 const tables = [
