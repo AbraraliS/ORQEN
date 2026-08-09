@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { LayoutDashboard, Play, Settings, Workflow } from "lucide-react";
 
 import { cn } from "@/lib/utils";
+import { OrqenLogo } from "@/components/brand/orqen-logo";
 import { OrgSwitcher } from "@/components/layout/org-switcher";
 import { UsageMeter } from "@/components/layout/usage-meter";
 import { useOrg } from "@/lib/auth/org-context";
@@ -22,8 +23,9 @@ export function AppSidebar() {
 
   return (
     <aside className="hidden w-60 shrink-0 flex-col border-r border-sidebar-border bg-sidebar lg:flex">
-      <div className="flex h-14 items-center gap-2.5 border-b border-sidebar-border px-4">
-        <Logo />
+      {/* Full wordmark in expanded sidebar */}
+      <div className="flex h-14 items-center border-b border-sidebar-border px-4">
+        <OrqenLogo variant="full" height={26} priority />
       </div>
 
       <nav className="flex-1 space-y-0.5 p-2">
@@ -56,24 +58,5 @@ export function AppSidebar() {
         <OrgSwitcher />
       </div>
     </aside>
-  );
-}
-
-export function Logo({ className }: { className?: string }) {
-  return (
-    <Link href="/dashboard" className={cn("flex items-center gap-2.5", className)}>
-      <span className="grid size-7 place-items-center rounded-sm border border-primary/30 bg-primary/10">
-        <svg viewBox="0 0 16 16" className="size-3.5" aria-hidden="true">
-          <path
-            d="M3 12L8 3l5 9H9.5L8 9.2 6.5 12H3z"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1.4"
-            className="text-primary"
-          />
-        </svg>
-      </span>
-      <span className="text-sm font-semibold tracking-tight text-foreground">Orqen</span>
-    </Link>
   );
 }

@@ -1,133 +1,344 @@
-# Orqen — AI Workflow Orchestration
+<div align="center">
+  <img src="./public/branding/orqen-logo.png" alt="Orqen" width="260" />
+</div>
 
-Orqen is a powerful, visual, and extensible AI workflow orchestration platform. It provides a node-based interface to design, automate, and execute multi-step workflows featuring AI generation, manual approval gates, conditional branching, HTTP requests, and more. 
+<div align="center">
 
-Orqen is built as a complete full-stack application backed by Nhost (PostgreSQL, Hasura GraphQL, Serverless Functions, and Authentication) and Next.js.
+# Orqen
 
-## Core Features
+**AI Workflow Orchestration Platform**
 
-- **Visual Workflow Builder:** A drag-and-drop React Flow canvas to design node-based DAG (Directed Acyclic Graph) workflows.
-- **Robust Execution Engine:** A fully realized state machine built with Nhost serverless functions and Hasura Actions that orchestrates execution, persists state step-by-step, and strictly handles failure routing.
-- **Manual Approval Gates:** Allows a workflow to safely pause execution in the cloud. It waits for an Editor or Owner to approve or reject the step from the dashboard before resuming the state machine.
-- **AI Integration:** First-class support for executing generative AI tasks using Gemini (LLM node).
-- **Conditional Branching:** Native support for True/False edge routing based on step outputs.
-- **Role-Based Access Control (RBAC):** Organization-level permissions securely isolating Owner, Editor, and Viewer roles using Hasura Row-Level Security (RLS) policies.
-- **Real-Time Monitoring:** Uses Hasura GraphQL Subscriptions via Apollo Client to stream workflow execution progress directly to the UI.
+Build, connect, execute, and monitor intelligent workflows.
 
-## Tech Stack & Architecture
+</div>
 
-- **Frontend:** Next.js (App Router), React, Tailwind CSS, shadcn/ui, React Flow.
-- **Data Layer:** Apollo Client with GraphQL subscriptions (ws/wss).
-- **Backend (Nhost):**
-  - **Database:** PostgreSQL for robust ACID-compliant state storage.
-  - **API:** Hasura GraphQL engine automatically exposing the database via secure GraphQL operations.
-  - **Authentication:** Nhost Auth (JWT) integrated with Next.js and Hasura.
-  - **Compute:** Nhost Serverless Functions (Node.js/Express) triggered via Hasura Custom Actions.
+---
 
-## The Execution Engine
+## Project Introduction
 
-Unlike simple client-side simulators, Orqen features a true backend execution engine:
-1. **Triggering:** A workflow is initiated via a Hasura Action (`triggerWorkflowRun`) which invokes the `/trigger-workflow` serverless function.
-2. **DAG Construction:** The function constructs a topological execution plan from the workflow's nodes and edges.
-3. **Step Execution (`executor.ts`):** Each step executes in sequence or conditionally. State is persistently logged to `step_runs` and `workflow_runs` tables.
-4. **Resumption:** If an `approval_gate` is reached, the engine suspends the execution and marks the run as `paused`. A subsequent `approveStep` Hasura Action resumes the workflow execution from where it left off by querying previous outputs.
+Orqen is a full-stack AI workflow orchestration platform built to connect language models, external APIs, logical operators, and human approval gates into reliable, executable pipelines.
 
-### Supported Node Types
-- **Trigger:** Entry point of the workflow (Manual, Webhook, Schedule).
-- **LLM:** Prompts Gemini AI with structured outputs.
-- **HTTP Request:** Executes outbound REST API calls.
-- **Conditional Branch:** Evaluates a condition and routes execution down `true` or `false` paths.
-- **Approval Gate:** Pauses execution until manual intervention.
-- **Database Write:** Stores outputs securely into the database.
-- **Notification:** Sends alerts (email, slack, etc).
+Instead of treating AI prompts as isolated operations, Orqen enables users to visually build intelligent workflows where the output of an LLM can be evaluated, passed to an external system via HTTP, written to a database, or paused for human review before continuing. Workflows are executed server-side via a resilient execution engine, with state persisted in PostgreSQL and streamed to the frontend via GraphQL subscriptions in real time.
 
-## Getting Started
+---
 
-### 1. Prerequisites
-- [Docker](https://www.docker.com/) (Required for local Nhost environment)
-- [Nhost CLI](https://docs.nhost.io/cli) (Installed globally or used via `npx nhost`)
-- Node.js (v20+)
-- A Gemini API Key (from Google AI Studio)
+## Key Features
 
-### 2. Environment Setup
+- **Visual Workflow Builder:** React Flow-powered drag-and-drop editor for composing node-based workflows.
+- **Server-Side Execution Engine:** Secure, stateful workflow execution handled via serverless functions.
+- **AI/LLM Execution:** Deep integration with Google Gemini for structured AI operations.
+- **HTTP Requests:** First-class support for external API interactions within a workflow.
+- **Conditional Branching:** Dynamic path routing based on previous step outputs.
+- **Human-in-the-Loop:** Approval gates that securely pause execution until authorized by an Editor or Owner.
+- **Database Writes:** Persist workflow outputs directly to the application database.
+- **Real-time Monitoring:** Hasura GraphQL subscriptions push live execution updates to the UI without polling.
+- **Multi-Organization Architecture:** Secure logical isolation of workflows, runs, and members by organization.
+- **Role-Based Access Control (RBAC):** Owner, Editor, and Viewer permissions enforced at the database (RLS) and server level.
+- **Nhost Authentication:** Complete authentication flow, including sign up, login, and password reset.
 
-Copy the environment template and populate it:
-```bash
-cp .env.example .env.local
-cp .env.example .env
+---
+
+## Product Workflow
+
+Orqen models business logic as a directed acyclic graph (DAG). The visual builder constructs the workflow, while the backend engine traverses and executes it.
+
+```mermaid
+graph TD
+    Trigger((Manual Trigger)) --> LLM[LLM Call: Gemini]
+    LLM --> Branch{Conditional}
+
+    Branch -- priority == "HIGH" --> HTTP[HTTP Request: PagerDuty]
+    Branch -- priority != "HIGH" --> DB[DB Write: Save Log]
+
+    HTTP --> Approval[Approval Gate]
+    Approval --> Notify[Notify: Slack]
 ```
 
-Ensure your `.env` and `.env.local` files contain your Gemini API key:
-```env
-GEMINI_API_KEY=your_actual_api_key_here
+---
+
+## Architecture
+
+Orqen employs a modern, serverless, GraphQL-first architecture.
+
+```mermaid
+graph TD
+    Client[Next.js + React Flow]
+    Apollo[Apollo Client]
+
+    Client <-->|Queries / Subscriptions| Apollo
+    Apollo <-->|GraphQL over HTTP/WS| Hasura[Hasura GraphQL Engine]
+
+    Hasura <--> Auth[Nhost Auth]
+    Hasura <--> Postgres[(PostgreSQL)]
+
+    Client -->|Actions| Functions[Nhost Serverless Functions]
+
+    Functions <--> Postgres
+    Functions --> Gemini[Google Gemini API]
+    Functions --> Web[External APIs]
 ```
 
-### 3. Start the Backend (Nhost)
+### Security Layers
 
-Start the complete backend infrastructure locally (Postgres, Hasura, Auth, Storage, Functions):
-```bash
-npx nhost up
-```
-*(This may take a few minutes the first time as it downloads the docker images.)*
+1. **Frontend:** Protects routes and provides role-aware UI elements.
+2. **Hasura (Database):** Enforces Row-Level Security (RLS) using session variables (`x-hasura-org-id`, `x-hasura-role`), ensuring users can only query data within their organization.
+3. **Nhost Functions (Execution):** Independently validates the user's role and organization membership before executing privileged operations like triggering a workflow or approving a paused step.
 
-### 4. Apply Hasura Metadata
+---
 
-To configure Hasura permissions, relationships, and Actions, run the setup script:
-```bash
-node setup-metadata.mjs
-```
+## Tech Stack
 
-### 5. Start the Frontend
+| Layer            | Technology                   |
+| ---------------- | ---------------------------- |
+| Frontend         | Next.js / React (App Router) |
+| Styling          | Tailwind CSS / shadcn/ui     |
+| Workflow Editor  | React Flow                   |
+| API              | GraphQL                      |
+| GraphQL Engine   | Hasura                       |
+| Backend Platform | Nhost                        |
+| Database         | PostgreSQL                   |
+| Authentication   | Nhost Auth                   |
+| Server Functions | Nhost Functions              |
+| AI               | Google Gemini                |
+| Realtime         | Hasura GraphQL Subscriptions |
 
-Install dependencies and start the Next.js development server:
-```bash
-npm install
-npm run dev
-```
-Open [http://localhost:3000](http://localhost:3000) in your browser.
-
-## Database Schema Highlights
-
-- `organizations`: Multi-tenant organization support.
-- `organization_members`: Maps users to orgs with defined roles (`owner`, `editor`, `viewer`).
-- `organization_usage`: Tracks quota limits per organization.
-- `workflows`: Metadata for workflows.
-- `workflow_steps` & `workflow_edges`: Normalized storage for React Flow node/edge graphs.
-- `workflow_runs`: High-level tracking of a single workflow execution.
-- `step_runs`: Atomic tracking of each individual step's status, input, output, duration, and error messages.
-
-## Security & Permissions
-
-Orqen heavily leverages Hasura Row-Level Security (RLS). Users are issued JWTs containing their `x-hasura-user-id`. 
-
-Hasura permissions ensure:
-- Users can only read data belonging to organizations where they are a member.
-- Only users with the `editor` or `owner` role can mutate workflows or approve paused steps.
-- Serverless functions perform a secondary verification of the user's role before executing privileged operations.
-
-## Environment Variables Configuration
-- `.env.local`: Used by Next.js frontend (contains `NEXT_PUBLIC_NHOST_SUBDOMAIN`).
-- `.env`: Used by Nhost functions runtime (contains `GEMINI_API_KEY` for backend execution).
-- `.nhost/docker-compose.yaml`: Automatically configures the local Nhost services.
+---
 
 ## Project Structure
 
 ```
-├── .nhost/                # Local Nhost docker-compose and configuration
-├── functions/             # Serverless backend compute (Node.js/Express)
-│   ├── _shared/           # Core execution engine (executor.ts, step-executor.ts)
-│   ├── approve-step.ts    # Hasura Action handler for manual approvals
-│   └── trigger-workflow.ts# Hasura Action handler for workflow initiation
-├── nhost/
-│   └── migrations/        # PostgreSQL schema migrations
+orqen/
 ├── src/
-│   ├── app/               # Next.js App Router pages
-│   ├── components/        # React components (UI, workflow builder)
-│   ├── hooks/             # Apollo GraphQL hooks (useWorkflow, useWorkflowRun)
-│   ├── lib/               # Utilities, Auth contexts, GraphQL Documents
-│   └── types/             # TypeScript interfaces
-├── setup-metadata.mjs     # Script to seed Hasura with tracking, RLS, and Actions
-└── .env.example           # Environment template
+│   ├── app/                # Next.js App Router pages (Auth, Dashboard, Workflows)
+│   ├── components/         # Shared UI, Workflow Canvas, Node Palette, Auth UI
+│   ├── hooks/              # Custom React hooks (useWorkflowRun, etc.)
+│   ├── lib/                # Core utilities (GraphQL queries, Nhost clients, Auth context)
+│   └── types/              # TypeScript definitions
+│
+├── nhost/
+│   ├── migrations/         # PostgreSQL schema definitions and seed data
+│   ├── metadata/           # Hasura GraphQL permissions, relationships, and actions
+│   └── functions/          # Serverless execution engine (trigger-workflow, approve-step)
+│
+├── public/                 # Brand assets and static files
+└── README.md               # You are here
 ```
 
+---
 
+## Workflow Data Model
+
+The backend schema strictly enforces organization isolation and tracks every execution detail.
+
+- **`organizations`**: The root tenant boundary.
+- **`org_members`**: Maps users to organizations with a specific role (`owner`, `editor`, `viewer`).
+- **`workflows`**: The blueprint containing the React Flow graph (nodes and edges).
+- **`workflow_runs`**: Represents a single execution instance of a workflow (Status: `running`, `paused`, `completed`, `failed`).
+- **`step_runs`**: Tracks the execution payload, status, output, and duration of individual nodes.
+
+---
+
+## Workflow Step Types
+
+Orqen supports a diverse set of workflow operations.
+
+### LLM Call (`llm_call`)
+
+Calls Google Gemini with a defined system and user prompt. Can interpolate previous step outputs (e.g., `{{previous.output}}`).
+
+### HTTP Request (`http_request`)
+
+Executes server-side REST API calls with configurable headers, payloads, and methods.
+
+### Conditional Branch (`conditional_branch`)
+
+Evaluates JSON payloads from previous steps (e.g., `previous.output.priority == 'HIGH'`) to determine the downstream execution path.
+
+### Approval Gate (`approval_gate`)
+
+_Assignment Requirement_
+Suspends workflow execution. Sets the `workflow_run` and `step_run` to a `paused` state. Execution only resumes when an authorized user (Editor or Owner) invokes the `approveStep` server mutation.
+
+### DB Write (`db_write`)
+
+Writes mapped values into connected PostgreSQL tables.
+
+### Notify (`notify`)
+
+Dispatches alerts to configured channels (e.g., Slack).
+
+---
+
+## Triggers
+
+### Implemented
+
+- **Manual Trigger:** Users explicitly start a workflow from the designer UI. The server extracts the `trigger` node and initiates the `workflow_run`.
+
+### Future / Not Currently Implemented
+
+- **Webhook:** External HTTP POST triggers.
+- **Scheduled:** Cron-based executions.
+- **Database Event:** Reacting to row changes via Hasura Event Triggers.
+
+---
+
+## Execution Engine
+
+Workflow execution is fully managed server-side by Nhost Functions. Mocking is not used; execution is real.
+
+1. **Invocation:** Client calls the `triggerWorkflowRun` GraphQL action.
+2. **Authorization:** Server validates the user's JWT, organization membership, and permissions.
+3. **Initialization:** A `workflow_run` record is inserted with status `running`.
+4. **Traversal:** The executor determines the topological order of the graph starting from the trigger.
+5. **Execution:** Each step processes its inputs. External calls (Gemini, HTTP) are made securely from the server. `step_runs` are continuously updated.
+6. **Pausing:** If an Approval Gate is reached, the run marks itself `paused` and the executor terminates.
+7. **Resumption:** An authorized user calls `approveStep`. The server verifies permissions, marks the step `completed`, and re-invokes the executor for downstream nodes.
+8. **Completion:** Upon reaching the final node, the run is marked `completed`.
+
+---
+
+## Security Model & Isolation
+
+### Role-Based Access Control (RBAC)
+
+Orqen defines three organizational roles:
+
+- **Owner:** Full workflow control, billing access, and membership management.
+- **Editor:** Can create and edit workflows, run executions, and approve paused gates.
+- **Viewer:** Read-only access to workflow configurations and run histories.
+
+### Cross-Organization Isolation
+
+A strict multi-tenant barrier is enforced via Hasura Row-Level Security (RLS).
+
+- **Layer 1 (Database):** All queries and subscriptions automatically filter by `organization_id` derived from the user's authenticated session token. Users cannot query data for organizations they do not belong to, even if they guess a valid UUID.
+- **Layer 2 (Server Functions):** All custom actions (`trigger-workflow`, `approve-step`) fetch the user's membership context before allowing privileged execution.
+
+---
+
+## GraphQL API
+
+Orqen leverages Hasura for automatic GraphQL API generation.
+
+### Queries (Examples)
+
+- `GetWorkflows`: Fetch workflows for the current org.
+- `GetWorkflowRun`: Fetch the details of a specific execution.
+
+### Mutations/Actions
+
+- `triggerWorkflowRun`: Starts a workflow execution (custom Action).
+- `approveStep`: Resumes a paused execution (custom Action).
+
+### Subscriptions
+
+- `WorkflowRunSubscription`: Streams live updates of a `workflow_run` and its associated `step_runs`.
+
+---
+
+## Local Development
+
+### Prerequisites
+
+- Docker
+- Node.js & npm
+- Nhost CLI
+
+### 1. Start the Backend
+
+```bash
+# Clone the repository
+git clone <repository-url>
+cd orqen
+
+# Start the Nhost local environment (Postgres, Hasura, Auth, Functions)
+nhost up
+```
+
+### 2. Start the Frontend
+
+```bash
+# Install dependencies
+npm install
+
+# Start the Next.js development server
+npm run dev
+```
+
+The frontend will be available at `http://localhost:3000`.
+
+---
+
+## Environment Variables
+
+Create a `.env.local` file in the project root:
+
+```env
+# Frontend (Public)
+NEXT_PUBLIC_NHOST_SUBDOMAIN=local
+NEXT_PUBLIC_NHOST_REGION=local
+NEXT_PUBLIC_APP_URL=http://localhost:3000
+
+# Serverless Functions (Secret - Never prefix with NEXT_PUBLIC)
+GEMINI_API_KEY=your_google_gemini_api_key
+```
+
+---
+
+## Testing & Validation
+
+The following validation scripts are available and verified:
+
+| Check         | Command             | Status |
+| ------------- | ------------------- | ------ |
+| Lint          | `npm run lint`      | PASS   |
+| TypeScript    | `npm run typecheck` | PASS   |
+| Build         | `npm run build`     | PASS   |
+| Nhost Backend | `nhost up`          | PASS   |
+
+### Assignment Requirement Mapping
+
+| Assignment Requirement | Orqen Implementation                                         |
+| ---------------------- | ------------------------------------------------------------ |
+| Organizations          | Supported natively (`organizations` table + context)         |
+| Membership             | Supported (`org_members` table)                              |
+| Workflow builder       | Built with React Flow                                        |
+| LLM step               | `llm_call` node querying Gemini                              |
+| HTTP step              | `http_request` node executing server-side fetch              |
+| DB write               | `db_write` node via server execution                         |
+| Notify                 | `notify` node                                                |
+| Conditional branch     | `conditional_branch` node evaluating payload paths           |
+| Approval gate          | `approval_gate` node + `approve-step.ts` server action       |
+| Manual trigger         | `manual` trigger node + `trigger-workflow.ts` action         |
+| Webhook trigger        | Webhook triggers are stubbed in UI (Not implemented backend) |
+| Real-time status       | Hasura GraphQL Subscriptions (`useWorkflowSubscription`)     |
+| Role permissions       | Enforced by Hasura RLS + Server Function checks              |
+| Cross-org isolation    | Enforced by Hasura session variables (`x-hasura-org-id`)     |
+
+---
+
+## Deployment
+
+Deployment configuration is prepared for **Vercel** (Frontend) and **Nhost Cloud** (Backend).
+
+To deploy:
+
+1. Link the repository to a new Nhost project (automatically applies migrations and metadata).
+2. Add `GEMINI_API_KEY` to Nhost Secrets.
+3. Link the repository to Vercel.
+4. Set `NEXT_PUBLIC_NHOST_SUBDOMAIN` and `NEXT_PUBLIC_NHOST_REGION` in Vercel to match the production Nhost project.
+
+---
+
+## Known Limitations
+
+- **Cron/Webhook Triggers:** Currently representable in the visual designer but not natively executing via backend schedulers.
+- **Canvas Edge Evaluation:** While conditional logic works, complex graph cycles or multiple independent start nodes are unsupported.
+- **E2E Testing:** End-to-end Cypress/Playwright tests are not currently implemented. Validation relies on strict TypeScript compilation and local environment testing.
+
+---
+
+<div align="center">
+  <p><i>Orchestrate intelligence across your workflows.</i></p>
+</div>

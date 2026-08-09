@@ -1,11 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
+import { useSignOut } from "@nhost/nextjs";
 import { LogOut, Search, User as UserIcon } from "lucide-react";
 import type { ReactNode } from "react";
 
-import { Logo } from "@/components/layout/app-sidebar";
+import { OrqenLogo } from "@/components/brand/orqen-logo";
 import { RoleBadge } from "@/components/layout/role-badge";
 import { UsageMeter } from "@/components/layout/usage-meter";
 import { Button } from "@/components/ui/button";
@@ -89,10 +90,15 @@ export function TopBar({
 
 function UserMenu() {
   const { user, role, setRole } = useOrg();
+  const { signOut } = useSignOut();
+  const router = useRouter();
   const initials = (user?.name || "U")
     .split(" ")
+    .filter(Boolean)
     .map((part) => part[0])
-    .join("");
+    .join("")
+    .slice(0, 2)
+    .toUpperCase();
 
   return (
     <DropdownMenu>
@@ -132,10 +138,14 @@ function UserMenu() {
             <UserIcon className="size-3.5" /> Settings
           </Link>
         </DropdownMenuItem>
-        <DropdownMenuItem asChild>
-          <Link href="/auth">
-            <LogOut className="size-3.5" /> Sign out
-          </Link>
+        <DropdownMenuItem
+          onSelect={async () => {
+            await signOut();
+            router.replace("/login");
+          }}
+          className="text-destructive focus:text-destructive"
+        >
+          <LogOut className="size-3.5" /> Sign out
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
@@ -153,7 +163,7 @@ export function MobileNav() {
 
   return (
     <div className="flex items-center gap-1 overflow-x-auto border-b border-border bg-sidebar px-3 py-2 lg:hidden">
-      <Logo className="mr-3 shrink-0" />
+      <OrqenLogo variant="mark" height={28} className="mr-3 shrink-0" />
       {items.map((item) => (
         <Link
           key={item.to}
