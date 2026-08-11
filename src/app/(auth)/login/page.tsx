@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useSignInEmailPassword } from "@nhost/nextjs";
@@ -17,12 +17,37 @@ const loginSchema = z.object({
 
 type LoginFormValues = z.infer<typeof loginSchema>;
 
+// Maps Nhost error codes/messages to user-friendly strings
+function mapNhostError(err: unknown): string {
+  if (!err) return "Sign in failed. Please try again.";
+  const e = err as { error?: string; message?: string; status?: number };
+  const code = e.error ?? "";
+  const msg = e.message ?? "";
+
+  if (code === "invalid-email-password" || code === "invalid-credentials" || code === "invalid-ticket") {
+    return "Invalid email or password. Please try again.";
+  }
+  if (code === "unverified-user" || msg.toLowerCase().includes("not verified")) {
+    return "Your email isn't verified yet. Please check your inbox for a verification link.";
+  }
+  if (code === "user-not-found") {
+    return "No account found with this email address.";
+  }
+  if (code === "disabled-user") {
+    return "This account has been disabled. Please contact support.";
+  }
+  if (code === "too-many-requests") {
+    return "Too many sign-in attempts. Please wait a moment and try again.";
+  }
+  return msg || "Sign in failed. Please try again.";
+}
+
 export default function LoginPage() {
   const router = useRouter();
-  const { signInEmailPassword, isLoading, isError, error } = useSignInEmailPassword();
+  const { signInEmailPassword, isLoading } = useSignInEmailPassword();
 
   const [showPassword, setShowPassword] = useState(false);
-  const passwordRef = useRef<HTMLInputElement>(null);
+  const [formError, setFormError] = useState<string | undefined>();
 
   const {
     register,
@@ -30,27 +55,22 @@ export default function LoginPage() {
     formState: { errors },
   } = useForm<LoginFormValues>({
     resolver: zodResolver(loginSchema),
-    defaultValues: {
-      email: "",
-      password: "",
-    },
+    defaultValues: { email: "", password: "" },
   });
 
   const onSubmit = async (data: LoginFormValues) => {
-    const { isSuccess } = await signInEmailPassword(data.email, data.password);
-
-    if (isSuccess) {
-      router.push("/dashboard");
+    setFormError(undefined);
+    try {
+      const result = await signInEmailPassword(data.email, data.password);
+      if (result.isSuccess) {
+        router.push("/dashboard");
+        return;
+      }
+      // SDK sets isError but we read error from result directly
+      setFormError(mapNhostError(result.error));
+    } catch (err: unknown) {
+      setFormError(mapNhostError(err));
     }
-  };
-
-  const mapError = (err: any) => {
-    if (!err) return undefined;
-    const msg = err.message || "";
-    if (msg.includes("Invalid email") || msg.includes("invalid-credentials")) {
-      return "Invalid email or password.";
-    }
-    return msg;
   };
 
   return (
@@ -62,7 +82,7 @@ export default function LoginPage() {
         </p>
       </div>
 
-      <AuthError message={isError ? mapError(error) : undefined} />
+      <AuthError message={formError} />
 
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
         <div>

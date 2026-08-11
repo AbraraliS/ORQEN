@@ -12,10 +12,11 @@ const isLocal =
 
 const nhostConfig = isLocal
   ? {
-      authUrl: "/_nhost/auth",
-      graphqlUrl: "/_nhost/graphql",
-      storageUrl: "/_nhost/storage",
-      functionsUrl: "/_nhost/functions",
+      // Route through our Next.js server-side proxy to bypass self-signed cert errors
+      authUrl: "http://localhost:3000/api/nhost/auth",
+      graphqlUrl: "http://localhost:3000/api/nhost/graphql",
+      storageUrl: "http://localhost:3000/api/nhost/storage",
+      functionsUrl: "http://localhost:3000/api/nhost/functions",
     }
   : {
       subdomain: process.env.NEXT_PUBLIC_NHOST_SUBDOMAIN!,

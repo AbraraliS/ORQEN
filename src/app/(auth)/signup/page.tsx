@@ -2,9 +2,8 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { useSignUpEmailPassword } from "@nhost/nextjs";
-import { Eye, EyeOff, CheckCircle2, Mail, KeyRound, User } from "lucide-react";
+import { Eye, EyeOff, Mail, KeyRound, User } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -14,7 +13,11 @@ const signupSchema = z
   .object({
     fullName: z.string().min(2, "Name must be at least 2 characters."),
     email: z.string().email("Please enter a valid email address."),
-    password: z.string().min(8, "Password must be at least 8 characters long."),
+    password: z
+      .string()
+      .min(8, "Password must be at least 8 characters.")
+      .regex(/[A-Z]/, "Password must contain at least one uppercase letter.")
+      .regex(/[0-9]/, "Password must contain at least one number."),
     confirmPassword: z.string(),
   })
   .refine((data) => data.password === data.confirmPassword, {
@@ -24,12 +27,37 @@ const signupSchema = z
 
 type SignupFormValues = z.infer<typeof signupSchema>;
 
+function mapNhostError(err: unknown): string {
+  if (!err) return "Something went wrong. Please try again.";
+  const e = err as { error?: string; message?: string; status?: number; reason?: string };
+  const code = e.error ?? "";
+  const msg = e.message ?? "";
+
+  if (code === "email-already-in-use" || msg.toLowerCase().includes("already in use")) {
+    return "An account with this email already exists. Try signing in instead.";
+  }
+  if (code === "schema-validation-error" || code === "invalid-request") {
+    const detail = e.reason || msg;
+    return `Invalid input: ${detail || "please check your details and try again."}`;
+  }
+  if (code === "disabled-user") {
+    return "This account has been disabled. Please contact support.";
+  }
+  if (code === "signup-disabled") {
+    return "New sign-ups are currently disabled.";
+  }
+  if (code === "too-many-requests") {
+    return "Too many attempts. Please wait a moment and try again.";
+  }
+  return msg || "Sign up failed. Please try again.";
+}
+
 export default function SignupPage() {
-  const router = useRouter();
-  const { signUpEmailPassword, isLoading, isError, error, isSuccess } = useSignUpEmailPassword();
+  const { signUpEmailPassword, isLoading, isSuccess } = useSignUpEmailPassword();
 
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [formError, setFormError] = useState<string | undefined>();
 
   const {
     register,
@@ -46,35 +74,37 @@ export default function SignupPage() {
   });
 
   const onSubmit = async (data: SignupFormValues) => {
-    await signUpEmailPassword(data.email, data.password, {
-      displayName: data.fullName,
-      metadata: {
-        fullName: data.fullName,
-      },
-    });
-  };
-
-  const mapError = (err: any) => {
-    if (!err) return undefined;
-    const msg = err.message || "";
-    if (msg.includes("already exists")) {
-      return "An account with this email already exists.";
+    setFormError(undefined);
+    try {
+      const result = await signUpEmailPassword(data.email, data.password, {
+        displayName: data.fullName,
+        metadata: { fullName: data.fullName },
+      });
+      if (!result.isSuccess && result.error) {
+        setFormError(mapNhostError(result.error));
+      }
+    } catch (err: unknown) {
+      setFormError(mapNhostError(err));
     }
-    return msg;
   };
 
   if (isSuccess) {
     return (
       <>
         <div className="mb-8">
-          <h2 className="text-2xl font-semibold tracking-tight text-white">Check your email</h2>
-          <p className="mt-1.5 text-sm text-muted-foreground">
-            We've sent a verification link to your email address.
+          <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-emerald-500/10 ring-1 ring-emerald-500/20">
+            <svg className="h-6 w-6 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+            </svg>
+          </div>
+          <h2 className="text-2xl font-semibold tracking-tight text-white">Account created!</h2>
+          <p className="mt-2 text-sm text-muted-foreground">
+            You can now sign in with your credentials.
           </p>
         </div>
-        <div className="pt-4">
+        <div className="pt-2">
           <Link href="/login" className="block w-full">
-            <AuthButton>Return to sign in</AuthButton>
+            <AuthButton>Sign in to your account</AuthButton>
           </Link>
         </div>
       </>
@@ -90,7 +120,7 @@ export default function SignupPage() {
         </p>
       </div>
 
-      <AuthError message={isError ? mapError(error) : undefined} />
+      <AuthError message={formError} />
 
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
         <div>
@@ -103,16 +133,10 @@ export default function SignupPage() {
             disabled={isLoading}
             prefixIcon={<User size={16} />}
             {...register("fullName")}
-            className={
-              errors.fullName
-                ? "border-destructive/50 focus:border-destructive/50 focus:ring-destructive/20"
-                : ""
-            }
+            className={errors.fullName ? "border-destructive/50 focus:border-destructive/50 focus:ring-destructive/20" : ""}
           />
           {errors.fullName && (
-            <p className="mt-1.5 text-[0.8rem] text-destructive font-medium">
-              {errors.fullName.message}
-            </p>
+            <p className="mt-1.5 text-[0.8rem] text-destructive font-medium">{errors.fullName.message}</p>
           )}
         </div>
 
@@ -126,16 +150,10 @@ export default function SignupPage() {
             disabled={isLoading}
             prefixIcon={<Mail size={16} />}
             {...register("email")}
-            className={
-              errors.email
-                ? "border-destructive/50 focus:border-destructive/50 focus:ring-destructive/20"
-                : ""
-            }
+            className={errors.email ? "border-destructive/50 focus:border-destructive/50 focus:ring-destructive/20" : ""}
           />
           {errors.email && (
-            <p className="mt-1.5 text-[0.8rem] text-destructive font-medium">
-              {errors.email.message}
-            </p>
+            <p className="mt-1.5 text-[0.8rem] text-destructive font-medium">{errors.email.message}</p>
           )}
         </div>
 
@@ -149,11 +167,7 @@ export default function SignupPage() {
             disabled={isLoading}
             prefixIcon={<KeyRound size={16} />}
             {...register("password")}
-            className={
-              errors.password
-                ? "border-destructive/50 focus:border-destructive/50 focus:ring-destructive/20"
-                : ""
-            }
+            className={errors.password ? "border-destructive/50 focus:border-destructive/50 focus:ring-destructive/20" : ""}
             suffix={
               <button
                 type="button"
@@ -165,9 +179,7 @@ export default function SignupPage() {
             }
           />
           {errors.password && (
-            <p className="mt-1.5 text-[0.8rem] text-destructive font-medium">
-              {errors.password.message}
-            </p>
+            <p className="mt-1.5 text-[0.8rem] text-destructive font-medium">{errors.password.message}</p>
           )}
         </div>
 
@@ -181,11 +193,7 @@ export default function SignupPage() {
             disabled={isLoading}
             prefixIcon={<KeyRound size={16} />}
             {...register("confirmPassword")}
-            className={
-              errors.confirmPassword
-                ? "border-destructive/50 focus:border-destructive/50 focus:ring-destructive/20"
-                : ""
-            }
+            className={errors.confirmPassword ? "border-destructive/50 focus:border-destructive/50 focus:ring-destructive/20" : ""}
             suffix={
               <button
                 type="button"
@@ -197,13 +205,16 @@ export default function SignupPage() {
             }
           />
           {errors.confirmPassword && (
-            <p className="mt-1.5 text-[0.8rem] text-destructive font-medium">
-              {errors.confirmPassword.message}
-            </p>
+            <p className="mt-1.5 text-[0.8rem] text-destructive font-medium">{errors.confirmPassword.message}</p>
           )}
         </div>
 
-        <div className="pt-2">
+        {/* Password hint */}
+        <p className="text-xs text-muted-foreground/60">
+          Min. 8 characters with at least one uppercase letter and one number.
+        </p>
+
+        <div className="pt-1">
           <AuthButton type="submit" loading={isLoading}>
             {isLoading ? "Creating account..." : "Create account"}
           </AuthButton>

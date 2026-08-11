@@ -36,18 +36,18 @@ export function AuthShell({ children }: { children: ReactNode }) {
         />
 
         <div className="relative z-10 flex flex-col p-10 xl:p-16 h-full justify-center items-center">
-          <div className="w-full max-w-[480px]">
-            <OrqenLogo variant="full" height={28} href={null} priority className="mb-10" />
+          <div className="w-full max-w-[420px]">
+            <OrqenLogo variant="full" height={26} href={null} priority className="mb-8" />
 
-            <h1 className="mb-4 text-3xl xl:text-[38px] leading-[1.15] font-semibold tracking-tight text-white/95">
+            <h1 className="mb-3 text-3xl lg:text-[34px] leading-tight font-semibold tracking-tight text-white/95">
               Build workflows that think, connect, and execute.
             </h1>
             <p className="text-[15px] text-muted-foreground/90">
               Orchestrate AI, APIs, logic, approvals, and data in one executable workflow.
             </p>
 
-            <div className="mt-10 rounded-xl border border-white/5 bg-white/[0.02] p-6 backdrop-blur-sm shadow-2xl w-full">
-              <div className="transform scale-[0.95] origin-top-left w-[105%]">
+            <div className="mt-8 rounded-xl border border-white/5 bg-white/[0.02] p-6 backdrop-blur-sm shadow-2xl w-full">
+              <div className="transform scale-[0.90] origin-top-left w-[110%]">
                 <AuthWorkflowVisual />
               </div>
             </div>
@@ -56,7 +56,7 @@ export function AuthShell({ children }: { children: ReactNode }) {
       </div>
 
       {/* RIGHT PANEL - Authentication, full width mobile, 50% desktop */}
-      <div className="relative flex flex-1 flex-col justify-center px-4 py-8 sm:px-6 lg:w-1/2 lg:flex-none overflow-y-auto overflow-x-hidden z-10 bg-[#050505]">
+      <div className="relative flex flex-1 flex-col justify-center px-4 py-8 sm:px-6 lg:w-1/2 overflow-y-auto overflow-x-hidden z-10 bg-[#050505]">
         {/* Extremely subtle violet glow behind the auth card */}
         <div
           aria-hidden
